@@ -967,9 +967,9 @@ const SUPABASE_URL = "https://rcegikeiaxptolrduguc.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjZWdpa2VpYXhwdG9scmR1Z3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NTMyMDcsImV4cCI6MjA3MTIyOTIwN30.jbPM9F977zeITEmFA_xvVU6SCxlWWVCi3Dx7ZhFfTp8";
 
 const ADMIN_PIN = "1234";
-const WHATSAPP_RESUMEN = "524624672994";
 
-
+let supabase = null;
+let supabaseReady = false;
 
 if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase && typeof window.supabase.createClient === "function") {
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -1817,211 +1817,8 @@ function getRangoLocalDia(fechaStr){
   };
 }
 
-async function buildResumenGeneralVentas(fechaStr){
-  if(!supabaseReady) return "";
-
-  if(!fechaStr){
-    alert("Elige una fecha.");
-    return "";
-  }
-
-  const { inicioISO, finISO, fechaBonita } = getRangoLocalDia(fechaStr);
-
-  const { data: comandas, error: errComandas } = await supabase
-    .from("comandas")
-    .select("id, mesa, mesero, estado, created_at, updated_at")
-    .eq("estado", "cerrada")
-    .gte("updated_at", inicioISO)
-    .lte("updated_at", finISO)
-    .order("updated_at", { ascending: false });
-
-  if(errComandas){
-    console.error(errComandas);
-    alert("No se pudo consultar el resumen del día.");
-    return "";
-  }
-
-  const listaComandas = comandas || [];
-
-  if(!listaComandas.length){
-    return `*RESUMEN DEL DÍA (${fechaBonita})*\n\nNo hay cuentas cerradas registradas en esa fecha.`;
-  }
-
-  const idsComandas = listaComandas.map(c => c.id);
-
-  const { data: items, error: errItems } = await supabase
-    .from("comandas_items")
-    .select("comanda_id, producto_id, producto_nombre, qty, precio_unitario")
-    .in("comanda_id", idsComandas);
-
-  if(errItems){
-    console.error(errItems);
-    alert("No se pudieron consultar los productos del resumen.");
-    return "";
-  }
-
-  const listaItems = items || [];
-  const itemsPorComanda = {};
-
-  listaItems.forEach(it=>{
-    if(!itemsPorComanda[it.comanda_id]) itemsPorComanda[it.comanda_id] = [];
-    itemsPorComanda[it.comanda_id].push(it);
-  });
-
-  let totalGeneral = 0;
-  const productos = {};
-  const porMesero = {};
-  const porTipoCuenta = {
-    mesas: { total:0, comandas:0 },
-    llevar: { total:0, comandas:0 },
-    carrito: { total:0, comandas:0 }
-  };
-
-  listaComandas.forEach(com=>{
-    const arr = itemsPorComanda[com.id] || [];
-
-    const totalComanda = arr.reduce((acc, it)=>{
-      const precio = (it.precio_unitario != null && it.precio_unitario !== "")
-        ? Number(it.precio_unitario || 0)
-        : Number(PRECIOS[it.producto_id] || 0);
-      return acc + (Number(it.qty || 0) * precio);
-    }, 0);
-
-    totalGeneral += totalComanda;
-
-    const mesero = com.mesero || "Sin mesero";
-    if(!porMesero[mesero]) porMesero[mesero] = { total:0, comandas:0 };
-    porMesero[mesero].total += totalComanda;
-    porMesero[mesero].comandas += 1;
-
-    const mesaNombre = (com.mesa || "").toLowerCase();
-    if(mesaNombre.includes("para llevar")){
-      porTipoCuenta.llevar.total += totalComanda;
-      porTipoCuenta.llevar.comandas += 1;
-    }else if(mesaNombre.includes("carrito")){
-      porTipoCuenta.carrito.total += totalComanda;
-      porTipoCuenta.carrito.comandas += 1;
-    }else{
-      porTipoCuenta.mesas.total += totalComanda;
-      porTipoCuenta.mesas.comandas += 1;
-    }
-
-    arr.forEach(it=>{
-      const nombre = it.producto_nombre || "Producto";
-      if(!productos[nombre]) productos[nombre] = { qty:0, total:0 };
-
-      const precio = (it.precio_unitario != null && it.precio_unitario !== "")
-        ? Number(it.precio_unitario || 0)
-        : Number(PRECIOS[it.producto_id] || 0);
-
-      productos[nombre].qty += Number(it.qty || 0);
-      productos[nombre].total += Number(it.qty || 0) * precio;
-    });
-  });
-
-  const topProductos = Object.entries(productos)
-    .sort((a,b)=> b[1].total - a[1].total)
-    .slice(0,10);
-
-  const rankingMeseros = Object.entries(porMesero)
-    .sort((a,b)=> b[1].total - a[1].total);
-
-  let texto = `*RESUMEN DEL DÍA (${fechaBonita})*\n\n`;
-  texto += `Solo cuentas cerradas\n\n`;
-  texto += `Total vendido: *${money(totalGeneral)}*\n`;
-  texto += `Total de cuentas cerradas: *${listaComandas.length}*\n\n`;
-
-  texto += `*Por tipo de cuenta:*\n`;
-  texto += `• Mesas: ${porTipoCuenta.mesas.comandas} cuentas / ${money(porTipoCuenta.mesas.total)}\n`;
-  texto += `• Para llevar: ${porTipoCuenta.llevar.comandas} cuentas / ${money(porTipoCuenta.llevar.total)}\n`;
-  texto += `• Carrito afuera: ${porTipoCuenta.carrito.comandas} cuentas / ${money(porTipoCuenta.carrito.total)}\n\n`;
-
-  texto += `*Ventas por mesero:*\n`;
-  if(!rankingMeseros.length){
-    texto += `Sin registros.\n\n`;
-  }else{
-    rankingMeseros.forEach(([mesero, info])=>{
-      texto += `• ${mesero}: ${info.comandas} cuentas / ${money(info.total)}\n`;
-    });
-    texto += `\n`;
-  }
-
-  texto += `*Top productos del día:*\n`;
-  if(!topProductos.length){
-    texto += `Sin productos registrados.\n`;
-  }else{
-    topProductos.forEach(([nombre, info])=>{
-      texto += `• ${nombre}: ${info.qty} pzas / ${money(info.total)}\n`;
-    });
-  }
-
-  return texto;
-}
-
-function normalizarTexto(s){
-  return String(s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function categoriaProductoPorNombre(nombre){
-  const n = normalizarTexto(nombre);
-
-  if(n.includes("quesa")) return "quesadillas";
-  if(n.includes("taco")) return "tacos";
-  if(n.includes("burrito")) return "burritos";
-  if(n.includes("charola")) return "charolas";
-  if(n.includes("volcan")) return "volcanes";
-
-  if(
-    n.includes("coca") ||
-    n.includes("fresca") ||
-    n.includes("sprite") ||
-    n.includes("agua") ||
-    n.includes("beb")
-  ) return "bebidas";
-
-  if(
-    n.includes("pay") ||
-    n.includes("rompope") ||
-    n.includes("arroz") ||
-    n.includes("flan") ||
-    n.includes("fresa") ||
-    n.includes("napolitano") ||
-    n.includes("postre")
-  ) return "postres";
-
-  return "otros";
-}
-
-function ordenarProductosSimilares(productosEntries){
-  const ordenCategorias = {
-    quesadillas: 1,
-    tacos: 2,
-    burritos: 3,
-    charolas: 4,
-    volcanes: 5,
-    bebidas: 6,
-    postres: 7,
-    otros: 8
-  };
-
-  return [...productosEntries].sort((a,b)=>{
-    const catA = categoriaProductoPorNombre(a[0]);
-    const catB = categoriaProductoPorNombre(b[0]);
-
-    const oa = ordenCategorias[catA] || 999;
-    const ob = ordenCategorias[catB] || 999;
-
-    if(oa !== ob) return oa - ob;
-
-    return String(a[0]).localeCompare(String(b[0]), "es", { sensitivity:"base" });
-  });
-}
-
-async function obtenerDatosResumenDia(fechaStr){
-  if(!supabaseReady) return null;
+async function obtenerDatosResumenDia(fechaStr) {
+  if (!supabaseReady) return null;
 
   const { inicioISO, finISO, fechaBonita } = getRangoLocalDia(fechaStr);
 
@@ -2033,23 +1830,23 @@ async function obtenerDatosResumenDia(fechaStr){
     .lte("updated_at", finISO)
     .order("updated_at", { ascending: false });
 
-  if(errComandas){
+  if (errComandas) {
     console.error(errComandas);
     alert("No se pudo consultar el resumen del día.");
     return null;
   }
 
-  const listaComandas = comandas || [];
+  let listaComandas = comandas || [];
   const idsComandas = listaComandas.map(c => c.id);
 
   let listaItems = [];
-  if(idsComandas.length){
+  if (idsComandas.length) {
     const { data: items, error: errItems } = await supabase
       .from("comandas_items")
       .select("comanda_id, producto_id, producto_nombre, qty, precio_unitario")
       .in("comanda_id", idsComandas);
 
-    if(errItems){
+    if (errItems) {
       console.error(errItems);
       alert("No se pudieron consultar los productos del resumen.");
       return null;
@@ -2059,52 +1856,83 @@ async function obtenerDatosResumenDia(fechaStr){
   }
 
   const itemsPorComanda = {};
-  listaItems.forEach(it=>{
-    if(!itemsPorComanda[it.comanda_id]) itemsPorComanda[it.comanda_id] = [];
+  listaItems.forEach(it => {
+    if (!itemsPorComanda[it.comanda_id]) itemsPorComanda[it.comanda_id] = [];
     itemsPorComanda[it.comanda_id].push(it);
   });
 
-  let totalGeneral = 0;
-  const productos = {};
-  const porMesero = {};
-  const porTipoCuenta = {
-    mesas: { total:0, comandas:0 },
-    llevar: { total:0, comandas:0 },
-    carrito: { total:0, comandas:0 }
-  };
-
-  const detalleComandas = listaComandas.map(com=>{
+  // Calcular total por comanda y filtrar las que tienen total > 0
+  const comandasConTotal = listaComandas.map(com => {
     const arr = itemsPorComanda[com.id] || [];
 
-    const totalComanda = arr.reduce((acc, it)=>{
+    const totalComanda = arr.reduce((acc, it) => {
       const precio = (it.precio_unitario != null && it.precio_unitario !== "")
         ? Number(it.precio_unitario || 0)
         : Number(PRECIOS[it.producto_id] || 0);
       return acc + (Number(it.qty || 0) * precio);
     }, 0);
 
+    return {
+      ...com,
+      totalComanda
+    };
+  });
+
+  // Filtrar solo las comandas con total > 0
+  const comandasFiltradas = comandasConTotal.filter(com => com.totalComanda > 0);
+
+  if (comandasFiltradas.length === 0) {
+    return {
+      fechaBonita,
+      fechaStr,
+      totalGeneral: 0,
+      totalComandas: 0,
+      porTipoCuenta: {
+        mesas: { total: 0, comandas: 0 },
+        llevar: { total: 0, comandas: 0 },
+        carrito: { total: 0, comandas: 0 }
+      },
+      rankingMeseros: [],
+      todosProductos: [],
+      detalleComandas: []
+    };
+  }
+
+  let totalGeneral = 0;
+  const productos = {};
+  const porMesero = {};
+  const porTipoCuenta = {
+    mesas: { total: 0, comandas: 0 },
+    llevar: { total: 0, comandas: 0 },
+    carrito: { total: 0, comandas: 0 }
+  };
+
+  const detalleComandas = comandasFiltradas.map(com => {
+    const arr = itemsPorComanda[com.id] || [];
+    const totalComanda = com.totalComanda;
+
     totalGeneral += totalComanda;
 
     const mesero = com.mesero || "Sin mesero";
-    if(!porMesero[mesero]) porMesero[mesero] = { total:0, comandas:0 };
+    if (!porMesero[mesero]) porMesero[mesero] = { total: 0, comandas: 0 };
     porMesero[mesero].total += totalComanda;
     porMesero[mesero].comandas += 1;
 
     const mesaNombre = (com.mesa || "").toLowerCase();
-    if(mesaNombre.includes("para llevar")){
+    if (mesaNombre.includes("para llevar")) {
       porTipoCuenta.llevar.total += totalComanda;
       porTipoCuenta.llevar.comandas += 1;
-    }else if(mesaNombre.includes("carrito")){
+    } else if (mesaNombre.includes("carrito")) {
       porTipoCuenta.carrito.total += totalComanda;
       porTipoCuenta.carrito.comandas += 1;
-    }else{
+    } else {
       porTipoCuenta.mesas.total += totalComanda;
       porTipoCuenta.mesas.comandas += 1;
     }
 
-    arr.forEach(it=>{
+    arr.forEach(it => {
       const nombre = it.producto_nombre || "Producto";
-      if(!productos[nombre]) productos[nombre] = { qty:0, total:0 };
+      if (!productos[nombre]) productos[nombre] = { qty: 0, total: 0 };
 
       const precio = (it.precio_unitario != null && it.precio_unitario !== "")
         ? Number(it.precio_unitario || 0)
@@ -2122,14 +1950,63 @@ async function obtenerDatosResumenDia(fechaStr){
     };
   });
 
-  const rankingMeseros = Object.entries(porMesero).sort((a,b)=> b[1].total - a[1].total);
+  // Ordenar detalleComandas por total descendente
+  detalleComandas.sort((a, b) => b.total - a.total);
+
+  const rankingMeseros = Object.entries(porMesero).sort((a, b) => b[1].total - a[1].total);
+  
+  function normalizarTexto(s) {
+    return String(s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function categoriaProductoPorNombre(nombre) {
+    const n = normalizarTexto(nombre);
+
+    if (n.includes("quesa")) return "quesadillas";
+    if (n.includes("taco")) return "tacos";
+    if (n.includes("burrito")) return "burritos";
+    if (n.includes("charola")) return "charolas";
+    if (n.includes("volcan")) return "volcanes";
+    if (n.includes("coca") || n.includes("fresca") || n.includes("sprite") || n.includes("agua") || n.includes("beb")) return "bebidas";
+    if (n.includes("pay") || n.includes("rompope") || n.includes("arroz") || n.includes("flan") || n.includes("fresa") || n.includes("napolitano") || n.includes("postre")) return "postres";
+    return "otros";
+  }
+
+  function ordenarProductosSimilares(productosEntries) {
+    const ordenCategorias = {
+      quesadillas: 1,
+      tacos: 2,
+      burritos: 3,
+      charolas: 4,
+      volcanes: 5,
+      bebidas: 6,
+      postres: 7,
+      otros: 8
+    };
+
+    return [...productosEntries].sort((a, b) => {
+      const catA = categoriaProductoPorNombre(a[0]);
+      const catB = categoriaProductoPorNombre(b[0]);
+
+      const oa = ordenCategorias[catA] || 999;
+      const ob = ordenCategorias[catB] || 999;
+
+      if (oa !== ob) return oa - ob;
+
+      return String(a[0]).localeCompare(String(b[0]), "es", { sensitivity: "base" });
+    });
+  }
+
   const todosProductos = ordenarProductosSimilares(Object.entries(productos));
 
   return {
     fechaBonita,
     fechaStr,
     totalGeneral,
-    totalComandas: listaComandas.length,
+    totalComandas: comandasFiltradas.length,
     porTipoCuenta,
     rankingMeseros,
     todosProductos,
@@ -2137,19 +2014,19 @@ async function obtenerDatosResumenDia(fechaStr){
   };
 }
 
-async function descargarResumenPDF(fechaStr){
-  if(!fechaStr){
+async function descargarResumenPDF(fechaStr) {
+  if (!fechaStr) {
     alert("Selecciona una fecha.");
     return;
   }
 
-  if(!window.jspdf || !window.jspdf.jsPDF){
+  if (!window.jspdf || !window.jspdf.jsPDF) {
     alert("No se pudo cargar la librería PDF.");
     return;
   }
 
   const data = await obtenerDatosResumenDia(fechaStr);
-  if(!data) return;
+  if (!data) return;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
@@ -2180,7 +2057,8 @@ async function descargarResumenPDF(fechaStr){
   };
 
   const formatMoney = (n) => money(n);
-  const drawHeader = ()=>{
+  
+  const drawHeader = () => {
     doc.setFillColor(...colors.navy);
     doc.rect(0, 0, pageWidth, 32, "F");
 
@@ -2198,9 +2076,16 @@ async function descargarResumenPDF(fechaStr){
     doc.setTextColor(...colors.muted);
     doc.text(`Fecha de resumen: ${data.fechaBonita}`, marginX + 14, topSafeY + 28);
     doc.text(`Generado: ${nowStr}`, marginX + 14, topSafeY + 44);
+    
+    if (data.totalComandas === 0) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.setTextColor(...colors.muted);
+      doc.text("*Nota: No se registraron ventas en esta fecha", marginX + 14, topSafeY + 60);
+    }
   };
 
-  const drawKpiCard = (x, y, w, h, label, value)=>{
+  const drawKpiCard = (x, y, w, h, label, value) => {
     doc.setFillColor(...colors.sky);
     doc.setDrawColor(...colors.line);
     doc.roundedRect(x, y, w, h, 10, 10, "FD");
@@ -2216,7 +2101,7 @@ async function descargarResumenPDF(fechaStr){
     doc.text(String(value), x + 10, y + 35);
   };
 
-  const buildTableTheme = (fontSize = 10)=>({
+  const buildTableTheme = (fontSize = 10) => ({
     margin: { left: marginX, right: marginX },
     headStyles: {
       fillColor: colors.blue,
@@ -2256,6 +2141,26 @@ async function descargarResumenPDF(fechaStr){
 
   let y = kpiY + cardH + 26;
 
+  if (data.totalComandas === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(...colors.text);
+    doc.text("No hay ventas registradas en esta fecha.", marginX, y + 30);
+    
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...colors.muted);
+      doc.text(`Página ${i} de ${totalPages}`, pageWidth - marginX, pageHeight - 16, { align: "right" });
+    }
+    
+    const nombreArchivo = `resumen_${data.fechaStr}_sin_ventas.pdf`;
+    doc.save(nombreArchivo);
+    return;
+  }
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(...colors.text);
@@ -2288,7 +2193,7 @@ async function descargarResumenPDF(fechaStr){
     startY: y,
     head: [["Mesero", "Cuentas", "Total"]],
     body: data.rankingMeseros.length
-      ? data.rankingMeseros.map(([mesero, info])=> [mesero, String(info.comandas), formatMoney(info.total)])
+      ? data.rankingMeseros.map(([mesero, info]) => [mesero, String(info.comandas), formatMoney(info.total)])
       : [["Sin registros", "0", formatMoney(0)]],
     columnStyles: {
       1: { halign: "center", cellWidth: 90 },
@@ -2299,7 +2204,7 @@ async function descargarResumenPDF(fechaStr){
   y = doc.lastAutoTable.finalY + 22;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text("Todas las comandas cerradas del día", marginX, y);
+  doc.text("Todas las comandas cerradas del día (con ventas > $0)", marginX, y);
 
   y += 10;
   doc.autoTable({
@@ -2307,7 +2212,7 @@ async function descargarResumenPDF(fechaStr){
     startY: y,
     head: [["Cuenta", "Mesero", "Hora cierre", "Total"]],
     body: data.detalleComandas.length
-      ? data.detalleComandas.map(c=>[
+      ? data.detalleComandas.map(c => [
           c.mesa,
           c.mesero,
           new Date(c.updated_at).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
@@ -2331,7 +2236,7 @@ async function descargarResumenPDF(fechaStr){
     startY: y,
     head: [["Producto", "Cantidad", "Total"]],
     body: data.todosProductos.length
-      ? data.todosProductos.map(([nombre, info])=> [nombre, String(info.qty), formatMoney(info.total)])
+      ? data.todosProductos.map(([nombre, info]) => [nombre, String(info.qty), formatMoney(info.total)])
       : [["Sin productos", "0", formatMoney(0)]],
     columnStyles: {
       1: { halign: "center", cellWidth: 90 },
@@ -2340,7 +2245,7 @@ async function descargarResumenPDF(fechaStr){
   });
 
   const totalPages = doc.internal.getNumberOfPages();
-  for(let i = 1; i <= totalPages; i++){
+  for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
@@ -2355,11 +2260,8 @@ async function descargarResumenPDF(fechaStr){
 function imprimirHtmlTicket(htmlContenido) {
   if (!htmlContenido) return;
 
-  // Detectar si es Android
   const isAndroid = /Android/i.test(navigator.userAgent);
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   
-  // Crear el documento del ticket
   const ticketDoc = `
     <!doctype html>
     <html lang="es">
@@ -2527,13 +2429,11 @@ function imprimirHtmlTicket(htmlContenido) {
   `;
   
   if (isAndroid) {
-    // En Android, usar una nueva ventana
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(ticketDoc);
       printWindow.document.close();
     } else {
-      // Si no se puede abrir ventana, usar iframe
       alert('Por favor, permite ventanas emergentes para imprimir');
       const printFrame = document.createElement('iframe');
       printFrame.style.position = 'absolute';
@@ -2554,7 +2454,6 @@ function imprimirHtmlTicket(htmlContenido) {
       }, 500);
     }
   } else {
-    // En desktop, usar iframe
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.width = '0';
