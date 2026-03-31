@@ -2352,17 +2352,14 @@ async function descargarResumenPDF(fechaStr){
   doc.save(nombreArchivo);
 }
 
-function imprimirHtmlTicket(htmlContenido){
-  if(!htmlContenido) return;
+function imprimirHtmlTicket(htmlContenido) {
+  if (!htmlContenido) return;
 
-  const returnUrl = location.href;
-  const win = window.open("", "_blank");
-
-  if(!win){
-    alert("El navegador bloqueó la ventana de impresión. Activa las ventanas emergentes.");
-    return;
-  }
-
+  // Detectar si es Android
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  
+  // Crear el documento del ticket
   const ticketDoc = `
     <!doctype html>
     <html lang="es">
@@ -2371,142 +2368,220 @@ function imprimirHtmlTicket(htmlContenido){
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
       <title>Ticket</title>
       <style>
-        @page{
-          size:80mm auto;
-          margin:0;
+        @page {
+          size: 80mm auto;
+          margin: 0;
         }
-
-        html, body{
-          margin:0;
-          padding:0;
-          width:80mm;
-          max-width:80mm;
-          background:#fff;
-          overflow-x:hidden;
+        
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
         }
-
-        body{
+        
+        html, body {
+          margin: 0;
+          padding: 0;
+          width: 80mm;
+          max-width: 80mm;
+          background: #fff;
+          overflow-x: hidden;
+        }
+        
+        body {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          color:#000;
+          color: #000;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
-
-        .ticket{
-          width:72mm;
-          margin:0 auto;
-          box-sizing:border-box;
-          padding:2mm 1.5mm 3mm;
-          font-size:16px;
-          line-height:1.25;
-          color:#000;
-          background:#fff;
+        
+        .ticket {
+          width: 72mm;
+          margin: 0 auto;
+          box-sizing: border-box;
+          padding: 2mm 1.5mm 3mm;
+          font-size: 16px;
+          line-height: 1.25;
+          color: #000;
+          background: #fff;
         }
-
-        .c{text-align:center}
-        .b{font-weight:900}
-        .lg{font-size:18px}
-        .hr{border-top:1px dashed #000;margin:5px 0}
-        .g{
-          font-weight:900;
-          margin-top:6px;
-          font-size:16px;
-          text-transform:uppercase;
+        
+        .c { text-align: center; }
+        .b { font-weight: 900; }
+        .lg { font-size: 18px; }
+        .hr { border-top: 1px dashed #000; margin: 5px 0; }
+        .g {
+          font-weight: 900;
+          margin-top: 6px;
+          font-size: 16px;
+          text-transform: uppercase;
         }
-        .it{margin:5px 0}
-        .itn{
-          font-weight:900;
-          font-size:18px;
-          line-height:1.15;
+        .it { margin: 5px 0; }
+        .itn {
+          font-weight: 900;
+          font-size: 18px;
+          line-height: 1.15;
         }
-        .sub{
-          padding-left:6px;
-          font-size:15px;
-          white-space:pre-wrap;
+        .sub {
+          padding-left: 6px;
+          font-size: 15px;
+          white-space: pre-wrap;
         }
-        .priceRow{
-          display:flex;
-          justify-content:space-between;
-          gap:8px;
-          font-size:15px;
-          margin-top:2px;
+        .priceRow {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 15px;
+          margin-top: 2px;
         }
-        .totalRowPrint{
-          display:flex;
-          justify-content:space-between;
-          gap:8px;
-          font-size:26px;
-          font-weight:900;
-          margin-top:8px;
+        .totalRowPrint {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 26px;
+          font-weight: 900;
+          margin-top: 8px;
         }
-
-        .screen-bar{
-          position:sticky;
-          top:0;
-          background:#fff;
-          padding:8px;
-          border-bottom:1px solid #ddd;
-          text-align:center;
-          font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+        
+        .screen-bar {
+          position: sticky;
+          top: 0;
+          background: #fff;
+          padding: 8px;
+          border-bottom: 1px solid #ddd;
+          text-align: center;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+          z-index: 100;
         }
-        .screen-bar button{
-          border:none;
-          border-radius:10px;
-          padding:10px 14px;
-          font-weight:800;
-          font-size:14px;
-          background:#1565c0;
-          color:#fff;
-          margin:0 4px;
-          cursor:pointer;
+        
+        .screen-bar button {
+          border: none;
+          border-radius: 10px;
+          padding: 12px 20px;
+          font-weight: 800;
+          font-size: 16px;
+          background: #1565c0;
+          color: #fff;
+          margin: 0 6px;
+          cursor: pointer;
         }
-
-        @media print{
-          .screen-bar{ display:none !important; }
+        
+        .screen-bar button:active {
+          opacity: 0.8;
+        }
+        
+        @media print {
+          .screen-bar { 
+            display: none !important; 
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
         }
       </style>
     </head>
     <body>
       <div class="screen-bar">
-        <button id="btnPrintManual" onclick="window.print()">Imprimir</button>
-        <button onclick="window.location.href='${returnUrl}'">Regresar</button>
+        <button id="btnPrintManual" onclick="window.print()">🖨️ Imprimir</button>
+        <button onclick="window.close()">✖️ Cerrar</button>
       </div>
       ${htmlContenido}
-
+      
       <script>
-        (function(){
-          const ua = navigator.userAgent || "";
-          const isAndroid = /Android/i.test(ua);
-
-          if(isAndroid){
-            const btnPrint = document.getElementById("btnPrintManual");
-            if(btnPrint) btnPrint.style.display = "none";
+        (function() {
+          function lanzarImpresion() {
+            setTimeout(function() {
+              try {
+                window.print();
+              } catch(e) {
+                console.log('Error al imprimir:', e);
+                var msg = document.createElement('div');
+                msg.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;z-index:1000;';
+                msg.innerHTML = '⚠️ Haz clic en "Imprimir" para continuar';
+                document.body.appendChild(msg);
+                setTimeout(function() { msg.remove(); }, 3000);
+              }
+            }, 500);
           }
-
-          function lanzarImpresionAuto(){
-            setTimeout(() => {
-              window.print();
-            }, 250);
+          
+          if (document.readyState === 'complete') {
+            lanzarImpresion();
+          } else {
+            window.addEventListener('load', lanzarImpresion);
           }
-
-          if(document.readyState === "complete"){
-            lanzarImpresionAuto();
-          }else{
-            window.addEventListener("load", lanzarImpresionAuto, { once:true });
-          }
-
-          window.addEventListener("afterprint", () => {
-            try { window.close(); } catch(e) {}
-          });
+          
+          window.onafterprint = function() {
+            setTimeout(function() {
+              try {
+                window.close();
+              } catch(e) {
+                console.log('Cierre manual requerido');
+              }
+            }, 1000);
+          };
         })();
       <\/script>
     </body>
     </html>
   `;
-
-  win.document.open();
-  win.document.write(ticketDoc);
-  win.document.close();
+  
+  if (isAndroid) {
+    // En Android, usar una nueva ventana
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(ticketDoc);
+      printWindow.document.close();
+    } else {
+      // Si no se puede abrir ventana, usar iframe
+      alert('Por favor, permite ventanas emergentes para imprimir');
+      const printFrame = document.createElement('iframe');
+      printFrame.style.position = 'absolute';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = 'none';
+      document.body.appendChild(printFrame);
+      
+      const frameDoc = printFrame.contentWindow.document;
+      frameDoc.write(ticketDoc);
+      frameDoc.close();
+      
+      setTimeout(function() {
+        printFrame.contentWindow.print();
+        setTimeout(function() {
+          document.body.removeChild(printFrame);
+        }, 1000);
+      }, 500);
+    }
+  } else {
+    // En desktop, usar iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+    
+    const iframeDoc = iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(ticketDoc);
+    iframeDoc.close();
+    
+    setTimeout(function() {
+      try {
+        iframe.contentWindow.print();
+      } catch(e) {
+        console.error('Error al imprimir:', e);
+      }
+    }, 500);
+    
+    setTimeout(function() {
+      if (iframe && iframe.parentNode) {
+        document.body.removeChild(iframe);
+      }
+    }, 3000);
+  }
 }
 
 function imprimirCuenta(){
