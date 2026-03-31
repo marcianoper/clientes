@@ -770,7 +770,8 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const ADMIN_PIN = "1234";
 
-
+let supabase = null;
+let supabaseReady = false;
 
 if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase && typeof window.supabase.createClient === "function") {
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -972,10 +973,14 @@ function renderCuenta(){
 async function cargarCuenta(mesa){
   if(!supabaseReady){
     setSyncStatus("Configura Supabase", "bad");
-    return;
+    return false;
   }
 
   setSyncStatus(`Cargando ${mesa}...`, "warn");
+  
+  // Actualizar mesa actual
+  mesaActual = mesa;
+  pillMesa.textContent = mesa;
 
   const { data: comanda, error: errCom } = await supabase
     .from("comandas")
@@ -989,7 +994,7 @@ async function cargarCuenta(mesa){
   if(errCom){
     console.error(errCom);
     setSyncStatus("Error al buscar la cuenta", "bad");
-    return;
+    return false;
   }
 
   if(!comanda){
@@ -997,7 +1002,7 @@ async function cargarCuenta(mesa){
     itemsActuales = [];
     renderCuenta();
     setSyncStatus(`No hay cuenta abierta en ${mesa}`, "warn");
-    return;
+    return false;
   }
 
   comandaActual = comanda;
@@ -1011,12 +1016,13 @@ async function cargarCuenta(mesa){
   if(errItems){
     console.error(errItems);
     setSyncStatus("Error al cargar productos", "bad");
-    return;
+    return false;
   }
 
   itemsActuales = items || [];
   renderCuenta();
   setSyncStatus(`Cuenta cargada: ${mesa}`, "ok");
+  return true;
 }
 
 async function cargarEstadoMesas(){
@@ -1102,17 +1108,25 @@ function renderMesas(){
     `;
 
     btn.onclick = async () => {
+      // Guardar mesa seleccionada
       mesaSeleccionadaModal = mesa;
-      await cargarCuenta(mesa);
       
-      // Mostrar modal con opciones
-      const total = getTotalCuenta();
-      mesaActionTitle.textContent = `Cuenta - ${mesa}`;
-      mesaActionTotal.textContent = money(total);
-      mesaActionPago.value = "";
-      mesaActionCambio.textContent = money(0);
-      mesaActionBackdrop.style.display = "flex";
-      setTimeout(() => mesaActionPago.focus(), 100);
+      // Cargar la cuenta primero
+      const cargado = await cargarCuenta(mesa);
+      
+      if(cargado && comandaActual){
+        // Mostrar modal con opciones
+        const total = getTotalCuenta();
+        mesaActionTitle.textContent = `Cuenta - ${mesa}`;
+        mesaActionTotal.textContent = money(total);
+        mesaActionPago.value = "";
+        mesaActionCambio.textContent = money(0);
+        document.getElementById("mesaActionCambioBox").style.background = "#f7fbff";
+        mesaActionBackdrop.style.display = "flex";
+        setTimeout(() => mesaActionPago.focus(), 300);
+      } else {
+        alert(`No se pudo cargar la cuenta de ${mesa}`);
+      }
     };
 
     activasGrid.appendChild(btn);
@@ -1146,33 +1160,33 @@ function buildCuentaPrint(){
 
   let html = `
     <div class="ticket">
-      <div class="c b lg">CUENTA</div>
-      <div class="c b">${escapeHtml(comandaActual.mesa || "Cuenta")}</div>
-      <div class="c">Mesero: ${escapeHtml(comandaActual.mesero || "—")}</div>
-      <div class="hr"></div>
+      <div style="text-align:center; font-weight:900; font-size:18px;">CUENTA</div>
+      <div style="text-align:center; font-weight:900;">${escapeHtml(comandaActual.mesa || "Cuenta")}</div>
+      <div style="text-align:center;">Mesero: ${escapeHtml(comandaActual.mesero || "—")}</div>
+      <div style="border-top:1px dashed #000; margin:5px 0;"></div>
   `;
 
   grupos.forEach(group => {
-    html += `<div class="g">${escapeHtml(group.plato)}</div>`;
+    html += `<div style="font-weight:900; margin-top:6px;">${escapeHtml(group.plato)}</div>`;
     group.items.forEach(item => {
       const precio = getPrecioUnitario(item);
       const importe = Number(item.qty || 0) * precio;
       html += `
-        <div class="it">
-          <div class="itn">${escapeHtml(item.qty)} x ${escapeHtml(item.producto_nombre || "Producto")}</div>
-          ${item.nota ? `<div class="sub">• ${escapeHtml(item.nota)}</div>` : ``}
-          <div class="priceRow">
+        <div style="margin:5px 0;">
+          <div style="font-weight:900;">${escapeHtml(item.qty)} x ${escapeHtml(item.producto_nombre || "Producto")}</div>
+          ${item.nota ? `<div style="padding-left:6px;">• ${escapeHtml(item.nota)}</div>` : ``}
+          <div style="display:flex; justify-content:space-between;">
             <span>${money(precio)} c/u</span>
             <span>${money(importe)}</span>
           </div>
         </div>
       `;
     });
-    html += `<div class="hr"></div>`;
+    html += `<div style="border-top:1px dashed #000; margin:5px 0;"></div>`;
   });
 
   html += `
-      <div class="totalRowPrint">
+      <div style="display:flex; justify-content:space-between; font-size:26px; font-weight:900; margin-top:8px;">
         <span>TOTAL</span>
         <span>${money(total)}</span>
       </div>
@@ -1200,16 +1214,6 @@ function imprimirHtmlTicket(htmlContenido) {
         html, body { margin: 0; padding: 0; width: 80mm; max-width: 80mm; background: #fff; overflow-x: hidden; }
         body { font-family: monospace; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .ticket { width: 72mm; margin: 0 auto; padding: 2mm 1.5mm 3mm; font-size: 16px; line-height: 1.25; }
-        .c { text-align: center; }
-        .b { font-weight: 900; }
-        .lg { font-size: 18px; }
-        .hr { border-top: 1px dashed #000; margin: 5px 0; }
-        .g { font-weight: 900; margin-top: 6px; font-size: 16px; text-transform: uppercase; }
-        .it { margin: 5px 0; }
-        .itn { font-weight: 900; font-size: 18px; }
-        .sub { padding-left: 6px; font-size: 15px; }
-        .priceRow { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; margin-top: 2px; }
-        .totalRowPrint { display: flex; justify-content: space-between; gap: 8px; font-size: 26px; font-weight: 900; margin-top: 8px; }
         .screen-bar { position: sticky; top: 0; background: #fff; padding: 8px; text-align: center; border-bottom: 1px solid #ddd; }
         .screen-bar button { border: none; border-radius: 10px; padding: 12px 20px; font-weight: 800; background: #1565c0; color: #fff; margin: 0 6px; cursor: pointer; }
         @media print { .screen-bar { display: none !important; } }
@@ -1222,7 +1226,9 @@ function imprimirHtmlTicket(htmlContenido) {
       </div>
       ${htmlContenido}
       <script>
-        setTimeout(() => { window.print(); }, 500);
+        setTimeout(() => { 
+          window.print(); 
+        }, 800);
         window.onafterprint = () => setTimeout(() => window.close(), 500);
       <\/script>
     </body>
@@ -1235,7 +1241,19 @@ function imprimirHtmlTicket(htmlContenido) {
       printWindow.document.write(ticketDoc);
       printWindow.document.close();
     } else {
-      alert('Permite ventanas emergentes para imprimir');
+      alert('Por favor, permite ventanas emergentes para imprimir');
+      // Fallback: usar iframe
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      const iframeDoc = iframe.contentWindow.document;
+      iframeDoc.write(ticketDoc);
+      iframeDoc.close();
+      setTimeout(() => iframe.contentWindow.print(), 500);
+      setTimeout(() => document.body.removeChild(iframe), 3000);
     }
   } else {
     const iframe = document.createElement('iframe');
@@ -1275,6 +1293,7 @@ async function cerrarCuentaModal(){
   itemsActuales = [];
   await cargarEstadoMesas();
   renderCuenta();
+  pillMesa.textContent = "Sin seleccionar";
 }
 
 async function editarPrecio(id){
@@ -1426,7 +1445,7 @@ async function descargarResumenPDF(fechaStr){
     texto += `${com.mesa} - ${com.mesero || "Sin mesero"} - ${money(com.total)}\n`;
   });
   
-  alert("Resumen generado. Revisa la consola para ver el detalle completo.\n\n" + texto);
+  alert("Resumen generado:\n\n" + texto);
   closeFechaResumenModal();
 }
 
@@ -1500,12 +1519,15 @@ document.getElementById("btnFechaResumenEnviar").onclick = async () => {
     return;
   }
   await descargarResumenPDF(fecha);
-  closeFechaResumenModal();
 };
 
 btnTipoMesas.onclick = () => cambiarTipoVista("mesas");
 btnTipoLlevar.onclick = () => cambiarTipoVista("llevar");
 btnTipoCarrito.onclick = () => cambiarTipoVista("carrito");
+
+// Exponer funciones globales para admin tools
+window.editarPrecio = editarPrecio;
+window.eliminarProducto = eliminarProducto;
 
 if(supabaseReady){
   setSyncStatus("Supabase conectado", "ok");
