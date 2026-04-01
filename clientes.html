@@ -20,7 +20,7 @@
   --text-muted: #64748b;
   --border-light: #e2e8f0;
   --border-medium: #cbd5e1;
-  --primary: #2c3e66;      /* azul profundo */
+  --primary: #2c3e66;
   --primary-dark: #1e2a45;
   --primary-light: #eef2ff;
   --success: #2e7d32;
@@ -57,13 +57,12 @@ body {
   min-height: 100vh;
 }
 
-/* ========== TIPOGRAFÍA ========== */
 h1, h2, h3, h4, .font-bold {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-/* ========== HEADER ========== */
+/* Header */
 header {
   background: var(--primary);
   color: white;
@@ -134,7 +133,7 @@ header {
   font-weight: 500;
 }
 
-/* ========== LAYOUT PRINCIPAL ========== */
+/* Layout principal */
 .wrap {
   max-width: 1280px;
   margin: 24px auto;
@@ -158,14 +157,14 @@ header {
   }
 }
 
-/* ========== TARJETAS ========== */
+/* Tarjetas */
 .card {
   background: var(--surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-light);
   overflow: hidden;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 .card:hover {
   box-shadow: var(--shadow-md);
@@ -193,7 +192,7 @@ header {
   padding: 20px 24px 24px;
 }
 
-/* ========== ESTADO DE SINCRONIZACIÓN ========== */
+/* Estado de sincronización */
 .syncStatus {
   margin-top: 16px;
   padding: 12px 16px;
@@ -220,7 +219,7 @@ header {
   border-color: rgba(198,40,40,0.2);
 }
 
-/* ========== ROL ========== */
+/* Rol */
 .roleBox {
   display: flex;
   justify-content: space-between;
@@ -251,7 +250,7 @@ header {
   border-color: var(--primary);
 }
 
-/* ========== BOTONES TIPO ========== */
+/* Botones tipo */
 .tipoGrid {
   display: flex;
   gap: 8px;
@@ -282,7 +281,7 @@ header {
   border-color: var(--border-medium);
 }
 
-/* ========== CUENTAS ACTIVAS ========== */
+/* Cuentas activas */
 .activasWrap {
   margin-top: 0;
 }
@@ -344,7 +343,7 @@ header {
   font-weight: 600;
 }
 
-/* ========== MODAL ========== */
+/* Modales */
 .backdrop {
   position: fixed;
   inset: 0;
@@ -419,7 +418,32 @@ header {
   display: block;
 }
 
-/* Detalle acordeón */
+/* Método de pago */
+.paymentMethodGrid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.paymentMethodBtn {
+  flex: 1;
+  background: white;
+  border: 1px solid var(--border-light);
+  border-radius: 48px;
+  padding: 14px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.paymentMethodBtn.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Acordeón */
 .detailAccordion {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -468,7 +492,6 @@ header {
   color: var(--primary);
 }
 
-/* Total en modal */
 .totalDisplay {
   background: var(--primary-light);
   border-radius: 48px;
@@ -480,7 +503,6 @@ header {
   margin-bottom: 20px;
 }
 
-/* Botones de acción */
 .actionButtons {
   display: flex;
   gap: 12px;
@@ -522,7 +544,6 @@ header {
   border-color: var(--border-medium);
 }
 
-/* ========== BOTONES GENERALES ========== */
 .btn {
   border: none;
   border-radius: 48px;
@@ -541,15 +562,6 @@ header {
   background: var(--warning-dark);
   transform: translateY(-1px);
 }
-.btnLight {
-  background: white;
-  border: 1px solid var(--border-medium);
-  color: var(--primary);
-}
-.btnLight:hover {
-  background: var(--primary-light);
-  border-color: var(--primary);
-}
 .btnBlue {
   background: var(--primary);
   color: white;
@@ -558,7 +570,6 @@ header {
   background: var(--primary-dark);
 }
 
-/* ========== UTILERÍAS ========== */
 .emptyState {
   text-align: center;
   padding: 48px 20px;
@@ -658,6 +669,24 @@ header {
   </div>
 </div>
 
+<!-- Modal de selección de método de pago -->
+<div class="backdrop" id="paymentMethodBackdrop">
+  <div class="modal">
+    <div class="modalHead"><h3>Método de pago</h3></div>
+    <div class="modalBody">
+      <div class="paymentMethodGrid" id="paymentMethodGrid">
+        <button class="paymentMethodBtn" data-method="efectivo">💵 Efectivo</button>
+        <button class="paymentMethodBtn" data-method="tarjeta">💳 Tarjeta</button>
+        <button class="paymentMethodBtn" data-method="transferencia">🏦 Transferencia</button>
+      </div>
+    </div>
+    <div class="modalFoot">
+      <button class="btnLight" id="btnCancelPaymentMethod">Cancelar</button>
+      <button class="btnBlue" id="btnConfirmPaymentMethod">Continuar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal login -->
 <div class="backdrop" id="loginBackdrop">
   <div class="modal">
@@ -697,7 +726,7 @@ header {
 </div>
 
 <script>
-// ==================== CÓDIGO ORIGINAL (SIN MODIFICACIONES) ====================
+// ==================== CÓDIGO ORIGINAL CON MODIFICACIONES ====================
 // Configuración Supabase
 const SUPABASE_URL = "https://rcegikeiaxptolrduguc.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjZWdpa2VpYXhwdG9scmR1Z3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NTMyMDcsImV4cCI6MjA3MTIyOTIwN30.jbPM9F977zeITEmFA_xvVU6SCxlWWVCi3Dx7ZhFfTp8";
@@ -712,6 +741,7 @@ let mesasConCuenta = new Set();
 let resumenMesas = {};
 let userRole = "operador";
 let tipoVista = "mesas";
+let selectedPaymentMethod = null; // Almacena método seleccionado
 
 // Precios
 const PRECIOS = {
@@ -750,6 +780,11 @@ const mesaActionCancelBtn = document.getElementById("mesaActionCancelBtn");
 const accordionHeader = document.getElementById("accordionHeader");
 const accordionContent = document.getElementById("accordionContent");
 const modalDetalleItems = document.getElementById("modalDetalleItems");
+
+const paymentMethodBackdrop = document.getElementById("paymentMethodBackdrop");
+const paymentMethodGrid = document.getElementById("paymentMethodGrid");
+const btnCancelPaymentMethod = document.getElementById("btnCancelPaymentMethod");
+const btnConfirmPaymentMethod = document.getElementById("btnConfirmPaymentMethod");
 
 const loginBackdrop = document.getElementById("loginBackdrop");
 const loginRol = document.getElementById("loginRol");
@@ -1048,20 +1083,37 @@ function imprimirTicket() {
   ventana.document.close();
 }
 
-async function cerrarCuenta() {
+// Nueva función para cerrar cuenta con método de pago
+async function cerrarCuentaConMetodo(paymentMethod, montoRecibido = null) {
   if (!comandaActual) { alert("No hay cuenta cargada"); return; }
   const total = getTotalCuenta();
-  const pago = parseFloat(mesaActionPago.value) || 0;
-  if (pago > 0 && pago < total && !confirm(`El pago (${money(pago)}) es menor al total (${money(total)}). ¿Deseas continuar?`)) return;
+  let pago = montoRecibido;
+  
+  // Para tarjeta/transferencia, el pago es exacto
+  if (paymentMethod !== "efectivo") {
+    pago = total;
+  }
+  
+  if (pago !== null && pago < total && !confirm(`El pago (${money(pago)}) es menor al total (${money(total)}). ¿Deseas continuar?`)) return;
 
   setSyncStatus(`Cerrando ${comandaActual.mesa}...`, "warn");
   try {
+    // Actualizar la comanda con el método de pago (opcional: guardar en campo extra)
+    // Si se quiere guardar, se puede añadir una columna 'metodo_pago' en la tabla comandas.
+    // Por ahora solo cerramos.
     const { error } = await supabase
       .from("comandas")
       .update({ estado: "cerrada", updated_at: new Date().toISOString() })
       .eq("id", comandaActual.id);
     if (error) throw error;
-    alert(`✅ Cuenta ${comandaActual.mesa} cerrada correctamente\nTotal: ${money(total)}\nPago: ${money(pago)}\nCambio: ${money(pago - total)}`);
+    
+    const mensajeMetodo = {
+      efectivo: "💵 Efectivo",
+      tarjeta: "💳 Tarjeta",
+      transferencia: "🏦 Transferencia"
+    }[paymentMethod];
+    
+    alert(`✅ Cuenta ${comandaActual.mesa} cerrada correctamente\nMétodo: ${mensajeMetodo}\nTotal: ${money(total)}\nPago: ${money(pago)}\nCambio: ${money(pago - total)}`);
     mesaActionBackdrop.style.display = "none";
     comandaActual = null;
     itemsActuales = [];
@@ -1071,7 +1123,67 @@ async function cerrarCuenta() {
   } catch (error) { console.error(error); alert("Error al cerrar la cuenta"); }
 }
 
-// Funciones resumen PDF (simplificadas, mantienen funcionalidad)
+// Mostrar modal de selección de método
+function mostrarSeleccionMetodo() {
+  if (!comandaActual) { alert("No hay cuenta cargada"); return; }
+  selectedPaymentMethod = null;
+  // Resetear selección visual
+  document.querySelectorAll('.paymentMethodBtn').forEach(btn => btn.classList.remove('selected'));
+  paymentMethodBackdrop.style.display = "flex";
+}
+
+// Eventos para método de pago
+paymentMethodGrid.addEventListener("click", (e) => {
+  const btn = e.target.closest(".paymentMethodBtn");
+  if (!btn) return;
+  document.querySelectorAll('.paymentMethodBtn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedPaymentMethod = btn.getAttribute("data-method");
+});
+
+btnConfirmPaymentMethod.onclick = () => {
+  if (!selectedPaymentMethod) {
+    alert("Selecciona un método de pago");
+    return;
+  }
+  paymentMethodBackdrop.style.display = "none";
+  
+  if (selectedPaymentMethod === "efectivo") {
+    // Mostrar el modal de cobro actual (ya está abierto) pero debemos enfocarlo
+    // Aseguramos que el modal de acción esté visible
+    mesaActionBackdrop.style.display = "flex";
+    // Cambiamos temporalmente el botón de cobrar para que llame a la función con el método
+    // Guardamos el método seleccionado para usarlo en el cierre
+    const originalPayHandler = mesaActionPayBtn.onclick;
+    mesaActionPayBtn.onclick = async () => {
+      const pago = parseFloat(mesaActionPago.value) || 0;
+      await cerrarCuentaConMetodo("efectivo", pago);
+      // Restaurar manejador original si se quiere, pero no es necesario
+      mesaActionPayBtn.onclick = originalPayHandler;
+    };
+  } else {
+    // Tarjeta o transferencia: cerrar directamente sin pedir monto
+    cerrarCuentaConMetodo(selectedPaymentMethod, getTotalCuenta());
+    mesaActionBackdrop.style.display = "none";
+  }
+};
+
+btnCancelPaymentMethod.onclick = () => {
+  paymentMethodBackdrop.style.display = "none";
+  selectedPaymentMethod = null;
+};
+
+// Modificar el botón de cobrar del modal de acción para que muestre la selección de método
+mesaActionPayBtn.onclick = () => {
+  // Si ya estamos en el modal de acción, mostramos selección de método
+  mostrarSeleccionMetodo();
+};
+
+mesaActionCancelBtn.onclick = () => mesaActionBackdrop.style.display = "none";
+mesaActionPago.addEventListener("input", calcularCambioModal);
+mesaActionPrintBtn.onclick = imprimirTicket;
+
+// Resto de funciones resumen PDF (sin cambios, solo se mantienen)
 function getRangoLocalDia(fechaStr) {
   const [y,m,d]=fechaStr.split("-").map(Number);
   const inicio=new Date(y,m-1,d,0,0,0,0);
@@ -1216,11 +1328,7 @@ async function cambiarTipoVista(nuevoTipo){
   await cargarEstadoMesas();
 }
 
-// Event listeners
-mesaActionPago.addEventListener("input",calcularCambioModal);
-mesaActionPrintBtn.onclick=imprimirTicket;
-mesaActionPayBtn.onclick=cerrarCuenta;
-mesaActionCancelBtn.onclick=()=>mesaActionBackdrop.style.display="none";
+// Event listeners adicionales
 mesaActionPago.addEventListener("keypress",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); mesaActionPago.blur(); } });
 document.getElementById("btnCambiarModo").onclick=()=>loginBackdrop.style.display="flex";
 document.getElementById("btnCerrarLogin").onclick=()=>loginBackdrop.style.display="none";
